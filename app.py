@@ -1,4 +1,4 @@
-# PERANCANGAN SISTEM INFORMASI PENGELOLAAN PENJUALAN DI WARUNG NASI SEDERHANA
+# PERANCANGAN SISTEM INFORMASI PENGELOLAAN PENJUALAN DI WARUNG NASI SEDERHANA PAKDE
 
 import pandas as pd
 import streamlit as st
@@ -99,46 +99,63 @@ elif pilihan_menu == "Daftar Menu Hidangan":
     st.write("Silahkan lihat daftar hidangan yang tersedia beserta rincian harga terbaru.")
     st.markdown("---")
 
-    # Menambahkan Input Menu
-    k_input, k_tabel = st.columns([1, 2])
-    with k_input:
-        st.subheader("Tambah Hidangan")
-        with st.form("form_tambah_menu", clear_on_submit=True):
-            nama_baru = st.text_input("Nama Makanan atau Minuman", placeholder="Misal: Nasi Telur")
-            harga_baru = st.number_input("Harga Jual (Rp)", min_value=0, step=1000)
-            tombol_simpan = st.form_submit_button("Simpan", type="primary")
+    # Menambahkan PIN
+    if "tervalidasi_menu" not in st.session_state:
+        st.session_state.tervalidasi_menu = False
 
-            if tombol_simpan and nama_baru != "":
-                conn = koneksi_db()
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO data_hidangan (menu_daftar, tarif) VALUES (?, ?)", (nama_baru, harga_baru))
-                conn.commit()
-                conn.close()
-                st.success(f"Berhasil menambahkan menu: {nama_baru}")
-                st.rerun()
+    if not st.session_state.tervalidasi_menu:
+        pin_menu = st.text_input("Masukkan PIN Pemilik untuk mengelola data hidangan:", type="password", key="secure_pin_menu")
+        
+        if pin_menu == "12345":
+            st.session_state.tervalidasi_menu = True
+            st.rerun()
+        elif pin_menu != "":
+            st.error("❌ PIN Salah! Anda tidak memiliki otoritas untuk mengakses halaman manajemen menu.")
+        else:
+            st.info("ℹ️ Halaman manajemen hidangan diprivasikan. Silakan masukkan PIN Pemilik untuk membuka.")
 
-    # Membuat Tampilan Tabel
-    with k_tabel:
-        st.subheader("Menu Hidangan Yang Tersedia Saat Ini")
-        conn = koneksi_db()
-        dataframe_brng = pd.read_sql_query("SELECT * FROM data_hidangan", conn)
-        conn.close()
+    if st.session_state.tervalidasi_menu:
+        st.success("🔓 Akses Diterima! Silakan kelola menu hidangan.")
+        st.markdown("---")
+        
+        k_input, k_tabel = st.columns([1, 2])
+        with k_input:
+            st.subheader("Tambah Hidangan")
+            with st.form("form_tambah_menu", clear_on_submit=True):
+                nama_baru = st.text_input("Nama Makanan atau Minuman", placeholder="Misal: Nasi Telur")
+                harga_baru = st.number_input("Harga Jual (Rp)", min_value=0, step=1000)
+                tombol_simpan = st.form_submit_button("Simpan", type="primary")
 
-        if not dataframe_brng.empty:
-            for index, row in dataframe_brng.iterrows():
-                mn1, mn2, mn3 = st.columns([2, 1, 1])
-                mn1.write(row['menu_daftar'])
-                mn2.write(f"**Rp {row['tarif']:,}**")
-                if mn3.button("Hapus Menu", key=f"del_prod_{row['id']}", type="secondary"):
+                if tombol_simpan and nama_baru != "":
                     conn = koneksi_db()
                     cursor = conn.cursor()
-                    cursor.execute("DELETE FROM data_hidangan WHERE id = ?", (row['id'],))
+                    cursor.execute("INSERT INTO data_hidangan (menu_daftar, tarif) VALUES (?, ?)", (nama_baru, harga_baru))
                     conn.commit()
                     conn.close()
+                    st.success(f"Berhasil menambahkan menu: {nama_baru}")
                     st.rerun()
-                st.markdown("---")
-        else:
-            st.info("Belum ada menu hidangan yang didaftarkan.")
+
+        with k_tabel:
+            st.subheader("Menu Hidangan Yang Tersedia Saat Ini")
+            conn = koneksi_db()
+            dataframe_brng = pd.read_sql_query("SELECT * FROM data_hidangan", conn)
+            conn.close()
+
+            if not dataframe_brng.empty:
+                for index, row in dataframe_brng.iterrows():
+                    mn1, mn2, mn3 = st.columns([2, 1, 1])
+                    mn1.write(row['menu_daftar'])
+                    mn2.write(f"**Rp {row['tarif']:,}**")
+                    if mn3.button("Hapus Menu", key=f"del_prod_{row['id']}", type="secondary"):
+                        conn = koneksi_db()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM data_hidangan WHERE id = ?", (row['id'],))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
+                    st.markdown("---")
+            else:
+                st.info("Belum ada menu hidangan yang didaftarkan.")
 
 # MENU 3 - PESAN HIDANGAN
 elif pilihan_menu == "Pesan Makanan & Minuman":
@@ -220,52 +237,70 @@ elif pilihan_menu =="Riwayat Pesanan":
     st.write("Daftar seluruh nota transaksi pemesanan makanan yang telah selesai diproses.")
     st.markdown("---")
 
-    conn = koneksi_db()
-    dataframe_rwyt = pd.read_sql_query("SELECT * FROM transaksi_penjualan", conn)
-    conn.close()
+    # Menambahkan PIN
+    if "tervalidasi_riwayat" not in st.session_state:
+        st.session_state.tervalidasi_riwayat = False
 
-    # Membuat Tampilan Riwayat Dengan Sebuah Filter
-    saring_c, ngosongin_c = st.columns([3, 1])
-    with saring_c:
-        pilihan_filter = st.radio("Filter Pesanan:", ["Hari Ini", "Semua Riwayat"], horizontal=True)
-    with ngosongin_c:
-        if st.button("Bersihkan Seluruh Catatan", type="secondary", use_container_width=True):
-            conn = koneksi_db()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM transaksi_penjualan")
-            conn.commit()
-            conn.close()
-            st.success("Seluruh catatan riwayat telah dibersihkan!")
+    if not st.session_state.tervalidasi_riwayat:
+        pin_riwayat = st.text_input("Masukkan PIN Pemilik untuk melihat rekapan omzet keuangan:", type="password", key="secure_pin_riwayat")
+        
+        if pin_riwayat == "12345":
+            st.session_state.tervalidasi_riwayat = True
             st.rerun()
-    st.markdown("---")
+        elif pin_riwayat != "":
+            st.error("❌ PIN Salah! Informasi keuangan bersifat rahasia.")
+        else:
+            st.info("ℹ️ Data riwayat transaksi dan finansial diprivasikan. Masukkan PIN Pemilik untuk membuka.")
 
-    if not dataframe_rwyt.empty:
-        today = datetime.now().strftime("%Y-%m-%d")
-        dataframe_rwyt['tanggal'] = dataframe_rwyt['jam'].str.slice(0, 10)
-
-        dataframe_tmpl = dataframe_rwyt[dataframe_rwyt['tanggal'] == today] if pilihan_filter == "Hari Ini" else dataframe_rwyt
-        hasil_total = dataframe_tmpl['bayaran_total'].sum()
-
-        st.success(f"### Total Akumulasi Nilai Penjualan ({pilihan_filter}): **Rp {hasil_total:,}**")
+    if st.session_state.tervalidasi_riwayat:
+        st.success("🔓 Akses Diterima! Menampilkan riwayat laporan penjualan.")
         st.markdown("---")
 
-        st.subheader("Daftar Catatan Transaksi")
-        for index, row in dataframe_tmpl.iterrows():
-            krw1, krw2, krw3 = st.columns([1, 2, 0.5])
-            with krw1:
-                t_jam_tgl = row['jam'].split()[1] if pilihan_filter == "Hari Ini" else row['tanggal']
-                st.write(f"waktu: {t_jam_tgl}")
-            with krw2:
-                st.write(f"**Rp {row['bayaran_total']:,}** ➜ {row['detail_unit']}")
-            with krw3:
-                if st.button("Hapus", key=f"del_kas_{row['id']}", type="secondary"):
-                    conn = koneksi_db()
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM transaksi_penjualan WHERE id = ?", (row['id'],))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
+        conn = koneksi_db()
+        dataframe_rwyt = pd.read_sql_query("SELECT * FROM transaksi_penjualan", conn)
+        conn.close()
+
+        saring_c, ngosongin_c = st.columns([3, 1])
+        with saring_c:
+            pilihan_filter = st.radio("Filter Pesanan:", ["Hari Ini", "Semua Riwayat"], horizontal=True)
+        with ngosongin_c:
+            if st.button("Bersihkan Seluruh Catatan", type="secondary", use_container_width=True):
+                conn = koneksi_db()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM transaksi_penjualan")
+                conn.commit()
+                conn.close()
+                st.success("Seluruh catatan riwayat telah dibersihkan!")
+                st.rerun()
+        st.markdown("---")
+
+        if not dataframe_rwyt.empty:
+            today = datetime.now().strftime("%Y-%m-%d")
+            dataframe_rwyt['tanggal'] = dataframe_rwyt['jam'].str.slice(0, 10)
+
+            dataframe_tmpl = dataframe_rwyt[dataframe_rwyt['tanggal'] == today] if pilihan_filter == "Hari Ini" else dataframe_rwyt
+            hasil_total = dataframe_tmpl['bayaran_total'].sum()
+
+            st.success(f"### Total Akumulasi Nilai Penjualan ({pilihan_filter}): **Rp {hasil_total:,}**")
             st.markdown("---")
-    else:
-        st.info(f"Belum ada catatan transaksi untuk kategori {pilihan_filter.lower()}.")
+
+            st.subheader("Daftar Catatan Transaksi")
+            for index, row in dataframe_tmpl.iterrows():
+                krw1, krw2, krw3 = st.columns([1, 2, 0.5])
+                with krw1:
+                    t_jam_tgl = row['jam'].split()[1] if pilihan_filter == "Hari Ini" else row['tanggal']
+                    st.write(f"waktu: {t_jam_tgl}")
+                with krw2:
+                    st.write(f"**Rp {row['bayaran_total']:,}** ➜ {row['detail_unit']}")
+                with krw3:
+                    if st.button("Hapus", key=f"del_kas_{row['id']}", type="secondary"):
+                        conn = koneksi_db()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM transaksi_penjualan WHERE id = ?", (row['id'],))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
+                st.markdown("---")
+        else:
+            st.info(f"Belum ada catatan transaksi untuk kategori {pilihan_filter.lower()}.")
 # SELESAI....
